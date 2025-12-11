@@ -13,39 +13,64 @@ router.post("/chat", async (req, res, next) => {
     try {
     const response = await axios.post(`${BASE_URL}/v1/completions`, {
         model: MODEL,
-        prompt: `На основе этого запроса сформируй JSON с полями: name, complaint, priority(Сильный ,Средний или Легкий). Пример: {"name": "Иван", "complaint": "Головная боль", "priority": "Высокий"}\n\nЗапрос:${prompt}`,
+        prompt: `Верни ТОЛЬКО валидный JSON одной строкой, без текста вокруг.
+Только поля: name (string), complaint (string), priority (one of: "Высокий","Средний","Лёгкий").
+Пример: {"name":"Иван","complaint":"Головная боль","priority":"Высокий"}
+
+Запрос: ${prompt}`,
         max_tokens: 200,
         temperature: 0.7
     });
-    let aiText = response.data.choices[0].text;
+    const aiText = response.data.choices?.[0]?.text || "";
+
+    // extract first JSON object from the text
+    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+        console.error("LM response is not JSON:", aiText);
+        return res.status(500).json({ error: "LM response is not JSON", raw: aiText });
+    }
+
     let aiResponse;
+    try {
+        aiResponse = JSON.parse(jsonMatch[0]);
+    } catch (error) {
+        console.error("Parse JSON failed:", error, aiText);
+        return res.status(500).json({ error: "Parsing JSON from LM Studio response failed", raw: aiText });
+    }
+
+    // normalize priority
+    const mapPriority = {
+        "High": "Высокий", "high": "Высокий",
+        "Medium": "Средний", "medium": "Средний",
+        "Low": "Лёгкий", "low": "Лёгкий",
+        "Сильный": "Высокий", "Легкий": "Лёгкий", "Легкий": "Лёгкий"
+    };
+
+    const name = aiResponse.name;
+    const complaint = aiResponse.complaint;
+    const priority = mapPriority[aiResponse.priority] || aiResponse.priority;
+
+    if(!name || !complaint || !priority) {
+        return res.status(400).json({ error: "Invalid response from LM Studio", raw: aiResponse });
+    }
+
     try{
-        aiResponse = JSON.parse(aiText);
-    }catch(error){
+        const now = new Date();
+        const date = now.toISOString().split("T")[0];
+        const time = now.toTimeString().substring(0,8);
+        const stmt = db.prepare(`
+            INSERT INTO Appointment (patientId, doctorId, name, complaint, priority, date, time)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        stmt.run(patientId, doctorId, name, complaint, priority, date, time);
+        return res.status(200).json({ message: "Appointment created successfully", data: { name, complaint, priority, date, time } });
+    } catch (error) {
         console.error("Error:", error);
-        return res.status(500).json({ error: "Parsing JSON from LM Studio response failed", error});
+        return res.status(500).json({ error: "Internal server error" });
     }
 } catch (error) {
     console.error("Error:", error);
-    return res.status(500).json({ error: "Response from LM Studio is not a valid JSON", raw: aiText});
-}
-const { name, complaint, priority } = aiResponse;
-if(!name || !complaint || !priority) {
-    return res.status(400).json({ error: "Invalid response from LM Studio" });
-}
-try{
-    const now = new Date();
-    const date = now.toISOString().split("T")[0];
-    const time = now.toISOString().split(" ")[0];
-    const stmt = db.prepare(`
-        INSERT INTO Appointment (patientId, doctorId, name, complaint, priority, date, time)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(patientId, doctorId, name, complaint, priority, date, time);
-    return res.status(200).json({ message: "Appointment created successfully" });
-} catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ error: "Internal server error" });
+    return res.status(500).json({ error: "Response from LM Studio is not a valid JSON" });
 }
 }); 
 //Вручную регистрация
