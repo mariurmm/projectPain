@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { queryAI } from "../api/lmstudio";
+import "../style/Chat.css";
+import { useLanguage } from "../context/LanguageContext"; // ✅ добавлено
 
 export default function Chat() {
   const [messages, setMessages] = useState([]);
@@ -7,19 +9,37 @@ export default function Chat() {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const { language } = useLanguage(); // ✅ язык из контекста
 
-  // Прокрутка вниз при новых сообщениях
+  const t = {
+    ru: {
+      title: "Консультация с ИИ",
+      placeholder: "Введите сообщение...",
+      send: "Отправить",
+      voiceStart: "Голос 🎤",
+      voiceStop: "Остановить 🎤",
+      error: "Ошибка сервера ИИ",
+    },
+    en: {
+      title: "AI Consultation",
+      placeholder: "Type a message...",
+      send: "Send",
+      voiceStart: "Voice 🎤",
+      voiceStop: "Stop 🎤",
+      error: "AI server error",
+    },
+  };
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Инициализация Web Speech API
   useEffect(() => {
     if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) return;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    recognition.lang = "ru-RU";
+    recognition.lang = language === "ru" ? "ru-RU" : "en-US"; // ✅ язык распознавания
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
@@ -34,12 +54,11 @@ export default function Chat() {
     };
 
     recognitionRef.current = recognition;
-  }, []);
+  }, [language]);
 
   async function sendMessage() {
     if (!text.trim()) return;
 
-    // Добавляем сообщение пользователя
     const newMsgs = [...messages, { text, isUser: true }];
     setMessages(newMsgs);
     setText("");
@@ -48,14 +67,13 @@ export default function Chat() {
       const reply = await queryAI(text);
       setMessages([...newMsgs, { text: reply, isUser: false }]);
     } catch (err) {
-      setMessages([...newMsgs, { text: "Ошибка сервера ИИ", isUser: false }]);
+      setMessages([...newMsgs, { text: t[language].error, isUser: false }]);
       console.error(err);
     }
   }
 
   function toggleListening() {
     if (!recognitionRef.current) return;
-
     if (!listening) {
       recognitionRef.current.start();
       setListening(true);
@@ -66,46 +84,29 @@ export default function Chat() {
   }
 
   return (
-    <div style={{ maxWidth: 600, margin: "20px auto", display: "flex", flexDirection: "column", height: "80vh" }}>
-      <h2>Консультация с ИИ</h2>
+    <div className="chat-wrapper">
+      <h2>{t[language].title}</h2>
 
-      <div style={{ flex: 1, overflowY: "auto", border: "1px solid #ccc", padding: 10, borderRadius: 8 }}>
+      <div className="chat-box">
         {messages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              justifyContent: m.isUser ? "flex-end" : "flex-start",
-              margin: "8px 0"
-            }}
-          >
-            <div
-              style={{
-                background: m.isUser ? "#DCF8C6" : "#EEE",
-                padding: "10px 15px",
-                borderRadius: 15,
-                maxWidth: "70%"
-              }}
-            >
-              {m.text}
-            </div>
+          <div key={i} className={`message-row ${m.isUser ? "message-user" : "message-ai"}`}>
+            <div className="message-bubble">{m.text}</div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ display: "flex", marginTop: 10 }}>
+      <div className="input-bar">
         <input
           type="text"
           value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Введите сообщение..."
-          style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #ccc" }}
-          onKeyDown={e => e.key === "Enter" && sendMessage()}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={t[language].placeholder}
+          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
         />
-        <button onClick={sendMessage} style={{ marginLeft: 5, padding: "0 15px" }}>Отправить</button>
-        <button onClick={toggleListening} style={{ marginLeft: 5, padding: "0 15px" }}>
-          {listening ? "Остановить 🎤" : "Голос 🎤"}
+        <button onClick={sendMessage}>{t[language].send}</button>
+        <button onClick={toggleListening}>
+          {listening ? t[language].voiceStop : t[language].voiceStart}
         </button>
       </div>
     </div>

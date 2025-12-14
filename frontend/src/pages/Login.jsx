@@ -3,12 +3,33 @@ import { useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 import "../style/Login.css";
 import logoBlack from "../assets/logo_black.svg";
+import { useLanguage } from "../context/LanguageContext"; 
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { language } = useLanguage(); 
+
+  const t = {
+    ru: {
+      email: "Электронная почта",
+      password: "Пароль",
+      placeholderEmail: "example@mail.com",
+      placeholderPassword: "Введите пароль",
+      login: "Войти",
+      title: "MedLink Assistant",
+    },
+    en: {
+      email: "Email",
+      password: "Password",
+      placeholderEmail: "example@mail.com",
+      placeholderPassword: "Enter password",
+      login: "Login",
+      title: "MedLink Assistant",
+    },
+  };
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -30,15 +51,15 @@ export default function Login() {
       <div className="login-box">
         <div className="login-logo-wrapper">
           <img src={logoBlack} alt="MedLink logo" className="login-logo" />
-          <span className="logo-text">MedLink Assistant</span>
+          <span className="logo-text">{t[language].title}</span>
         </div>
 
         <form onSubmit={handleLogin}>
           <div className="login-field">
-            <label>Электронная почта</label>
+            <label>{t[language].email}</label>
             <input
               type="email"
-              placeholder="example@mail.com"
+              placeholder={t[language].placeholderEmail}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -46,10 +67,10 @@ export default function Login() {
           </div>
 
           <div className="login-field">
-            <label>Пароль</label>
+            <label>{t[language].password}</label>
             <input
               type="password"
-              placeholder="Введите пароль"
+              placeholder={t[language].placeholderPassword}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -60,7 +81,7 @@ export default function Login() {
 
           <div className="login-buttons">
             <button type="submit" className="btn-primary">
-              Войти
+              {t[language].login}
             </button>
           </div>
         </form>
