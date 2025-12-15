@@ -1,0 +1,161 @@
+/* =========================
+   Общий фон страницы
+========================= */
+.doctor-home-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100vw;
+  background: linear-gradient(135deg, #e0f2f1 0%, #ffffff 100%);
+  font-family: "Inter", "Segoe UI", sans-serif;
+  color: #1f2937;
+}
+
+.doctor-home-container {
+  width: 100%;
+  max-width: 1000px;
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Заголовок */
+.doctor-home-container h2 {
+  font-size: 28px;
+  font-weight: 600;
+  color: #38A3A5;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+/* =========================
+   Сообщение "Нет пациентов"
+========================= */
+.no-patients {
+  text-align: center;
+  color: #6b7280;
+  font-size: 16px;
+  margin: 20px 0;
+}
+
+/* =========================
+   Таблица пациентов
+========================= */
+.patients-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: 30px;
+}
+
+.patients-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.patients-table thead {
+  background-color: #38A3A5;
+  color: white;
+}
+
+.patients-table th {
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.patients-table tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease;
+}
+
+.patients-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.patients-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.patients-table td {
+  padding: 16px;
+  font-size: 14px;
+  color: #374151;
+}
+
+/* =========================
+   Кнопка выхода
+========================= */
+.doctor-btn {
+  width: 100%;
+  max-width: 200px;
+  height: 50px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease-in-out;
+  display: block;
+  margin: 0 auto;
+}
+
+.doctor-btn.logout {
+  background-color: #f1f5f9;
+  color: #1f2937;
+}
+
+.doctor-btn.logout:hover {
+  background-color: #e2e8f0;
+  transform: translateY(-2px);
+}
+
+/* =========================
+   Адаптив
+========================= */
+@media (max-width: 768px) {
+  .doctor-home-wrapper {
+    padding: 20px 10px;
+  }
+
+  .doctor-home-container {
+    padding: 30px 20px;
+  }
+
+  .doctor-home-container h2 {
+    font-size: 24px;
+  }
+
+  .patients-table th,
+  .patients-table td {
+    padding: 12px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .doctor-home-container {
+    padding: 20px 15px;
+  }
+
+  .doctor-home-container h2 {
+    font-size: 22px;
+    margin-bottom: 20px;
+  }
+
+  .patients-table th,
+  .patients-table td {
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+
+  .doctor-btn {
+    font-size: 14px;
+    height: 45px;
+  }
+}
