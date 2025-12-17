@@ -2,160 +2,99 @@ import express from "express";
 import db from "../db/db.js";
 const router = express.Router();
 import axios from "axios";
-const BASE_URL = "http://26.108.80.85:1234";
-const MODEL = "gemma-3-4b-it-qat";
+const BASE_URL = "http://127.0.0.1:1234"; //Свой URL
+const MODEL = "google/gemma-2-9b"; // название
 //Сообщение кидает в LM Studio и возвращает ответ
-router.post("/chat", async (req, res, next) => {
-    const { prompt, doctorId, patientId } = req.body;
-    if (!prompt) {
-        return res.status(400).json({ error: "Message is required" });
-    }
-    try {
-    const response = await axios.post(`${BASE_URL}/v1/completions`, {
-        model: MODEL,
-        prompt: `Верни ТОЛЬКО валидный JSON одной строкой, без текста вокруг.
-Только поля: name (string), complaint (string), priority (one of: "Высокий","Средний","Лёгкий").
-Пример: {"name":"Иван","complaint":"Головная боль","priority":"Высокий"}
+router.post("/chat", async (req, res) => {
+  const { message } = req.body;
 
-Запрос: ${prompt}`,
-        max_tokens: 200,
-        temperature: 0.7
-    });
-    const aiText = response.data.choices?.[0]?.text || "";
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
 
-    // extract first JSON object from the text
-    const jsonMatch = aiText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-        console.error("LM response is not JSON:", aiText);
-        return res.status(500).json({ error: "LM response is not JSON", raw: aiText });
-    }
+  try {
+    const response = await axios.post(
+      "http://127.0.0.1:1234/v1/chat/completions",
+      {
+        model: "google/gemma-2-9b",
+        messages: [
+          {
+            role: "system",
+            content:
+              'Отвечай СТРОГО в формате JSON. Только один объект. Без markdown. Формат: {"aiResponse":"string"}'
+          },
+          {
+            role: "user",
+            content: message
+          }
+        ],
+        max_tokens: 512,
+        temperature: 0.3
+      }
+    );
 
-    let aiResponse;
-    try {
-        aiResponse = JSON.parse(jsonMatch[0]);
-    } catch (error) {
-        console.error("Parse JSON failed:", error, aiText);
-        return res.status(500).json({ error: "Parsing JSON from LM Studio response failed", raw: aiText });
-    }
+    const aiText = response.data.choices?.[0]?.message?.content;
 
-    // normalize priority
-    const mapPriority = {
-        "High": "Высокий", "high": "Высокий",
-        "Medium": "Средний", "medium": "Средний",
-        "Low": "Лёгкий", "low": "Лёгкий",
-        "Сильный": "Высокий", "Легкий": "Лёгкий", "Легкий": "Лёгкий"
-    };
-
-    const name = aiResponse.name;
-    const complaint = aiResponse.complaint;
-    const priority = mapPriority[aiResponse.priority] || aiResponse.priority;
-
-    if(!name || !complaint || !priority) {
-        return res.status(400).json({ error: "Invalid response from LM Studio", raw: aiResponse });
+    if (!aiText) {
+      return res.status(500).json({ error: "Empty response from model" });
     }
 
-    try{
-        const now = new Date();
-        const date = now.toISOString().split("T")[0];
-        const time = now.toTimeString().substring(0,8);
-        const stmt = db.prepare(`
-            INSERT INTO Appointment (patientId, doctorId, name, complaint, priority, date, time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-        stmt.run(patientId, doctorId, name, complaint, priority, date, time);
-        return res.status(200).json({ message: "Appointment created successfully", data: { name, complaint, priority, date, time } });
-    } catch (error) {
-        console.error("Error:", error);
-        return res.status(500).json({ error: "Internal server error" });
+    // вытаскиваем JSON
+    const match = aiText.match(/\{[\s\S]*?\}/);
+
+    if (!match) {
+      return res.status(500).json({
+        error: "No JSON found in model response",
+        raw: aiText
+      });
     }
-} catch (error) {
-    console.error("Error:", error);
-    return res.status(500).json({ error: "Response from LM Studio is not a valid JSON" });
-}
-}); 
-//Вручную регистрация
-router.post("/registerAppointment", async (req, res, ) => {
-    const { patientId, doctorId, name, complaint, priority, date, } = req.body;
-    if (!patientId || !doctorId || !name || !complaint || !priority) {
-        return res.status(400).json({ error: "All fields are required" });
-    }
-    try {
-        const patient = db.prepare("SELECT * FROM User WHERE id = ?").get(patientId);
-        const doctor = db.prepare("SELECT * FROM User WHERE id = ?").get(doctorId);
 
-        if (!patient) {
-            return res.status(400).json({ error: "Patient not found" });
-        }
-        if (!doctor) {
-            return res.status(400).json({ error: "Doctor not found" });
-        }
-
-        // Проверяем роли
-        if (patient.role !== "patient") {
-            return res.status(400).json({ error: "User with patientId is not a patient" });
-        }
-        if (doctor.role !== "doctor") {
-            return res.status(400).json({ error: "User with doctorId is not a doctor" });
-        }
-
-        const now = new Date();
-        const date = now.toISOString().split("T")[0];
-        const time = now.toTimeString();
-        const stmt = db.prepare(`
-            INSERT INTO Appointment (patientId, doctorId, name, complaint, priority, date, time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `);
-
-      
-      
-        stmt.run(patientId, doctorId, name, complaint, priority, date, time.substring(0,8));
-        return res.status(200).json({ message: "Appointment registered successfully" });
-    } catch (error) {
-        console.error("Error:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-});
-router.get("/patients", (req, res) => {
-    const stmt = db.prepare(`
-        SELECT a.*, u.name AS patientName
-        FROM Appointment a
-        JOIN User u ON a.patientId = u.id
-        ORDER BY 
-            CASE a.priority
-                WHEN 'Высокий' THEN 1
-                WHEN 'Средний' THEN 2
-                WHEN 'Лёгкий' THEN 3
-                ELSE 4
-            END ASC,
-            a.date DESC,
-            a.time DESC
-    `);
-
-    const appointments = stmt.all();
-    res.json(appointments);
+    const parsed = JSON.parse(match[0]);
+    return res.json({
+  aiResponse: parsed.aiResponse // или aiMessage
 });
 
-// Get single appointment by ID
-router.get("/appointments/:id", (req, res) => {
-    try {
-        const { id } = req.params;
-        const stmt = db.prepare(`
-            SELECT a.*, u.name AS patientName
-            FROM Appointment a
-            JOIN User u ON a.patientId = u.id
-            WHERE a.id = ?
-        `);
-        const appointment = stmt.get(id);
-        
-        if (!appointment) {
-            return res.status(404).json({ error: "Appointment not found" });
-        }
-        
-        res.json(appointment);
-    } catch (error) {
-        console.error("Error:", error);
-        res.status(500).json({ error: "Internal server error" });
+  } catch (err) {
+    console.error("LM Studio error:", err.message);
+    return res.status(500).json({ error: "Error communicating with LM Studio" });
+  }
+});
+
+router.get("/patient/appointment",  async (req, res) => {
+  try {
+    const userId = req.user.id; 
+    const role = req.user.role;
+
+    if (role !== "patient") {
+      return res.status(403).json({ message: "Access denied" });
     }
+
+    const result = await db.query(
+      `
+      SELECT 
+        a.id,
+        a.complaint,
+        a.priority,
+        a.status,
+        u.name AS "doctorName"
+      FROM appointments a
+      LEFT JOIN users u ON u.id = a.doctor_id
+      WHERE a.patient_id = $1
+      ORDER BY a.id DESC
+      LIMIT 1
+      `,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.json(null); // ← фронт это уже обрабатывает
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Patient appointment error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 // Update appointment

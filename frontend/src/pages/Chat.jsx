@@ -65,7 +65,12 @@ export default function Chat() {
 
     try {
       const reply = await queryAI(text);
-      setMessages([...newMsgs, { text: reply, isUser: false }]);
+
+setMessages(prev => [
+  ...prev,
+  { from: "ai", text: reply }
+
+]);
     } catch (err) {
       setMessages([...newMsgs, { text: t[language].error, isUser: false }]);
       console.error(err);

@@ -1,6 +1,6 @@
-import betterSqlite3 from "better-sqlite3"; 
+import DataBase from "better-sqlite3";
 
-const db = betterSqlite3("medlink.db");
+const db = new DataBase("medlink.db");
 
 db.exec(`CREATE TABLE IF NOT EXISTS User(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
